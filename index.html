@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>月日均AUM计算器</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, select {
+            width: 100%;
+            padding: 8px;
+            box-sizing: border-box;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            padding: 10px 15px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            width: 100%;
+            margin-top: 10px;
+        }
+        #result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 4px;
+        }
+        .error {
+            color: #d9534f;
+            background-color: #f2dede;
+            border: 1px solid #ebccd1;
+        }
+        .success {
+            color: #3c763d;
+            background-color: #dff0d8;
+            border: 1px solid #d6e9c6;
+        }
+        .required:after {
+            content: " *";
+            color: red;
+        }
+        .mode-selector {
+            margin-bottom: 20px;
+            padding: 10px;
+            background-color: #f5f5f5;
+            border-radius: 4px;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>月日均AUM计算器</h1>
+        
+        <div class="mode-selector">
+            <label for="calcMode">计算模式：</label>
+            <select id="calcMode" onchange="changeMode()">
+                <option value="deposit">计算需存入/转出金额</option>
+                <option value="target">计算目标月日均</option>
+            </select>
+        </div>
+        
+        <form id="calculatorForm">
+            <!-- 公共字段 -->
+            <div class="form-group">
+                <label for="currentDate" class="required">当前日期</label>
+                <input type="date" id="currentDate" required>
+            </div>
+            <div class="form-group">
+                <label for="currentPoint" class="required">当前账户余额</label>
+                <div style="display: flex;">
+                    <input type="number" id="currentPoint" step="0.01" required style="flex: 1;">
+                    <select id="unit" style="width: 80px; margin-left: 10px;">
+                        <option value="yuan">元</option>
+                        <option value="wan">万元</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="currentMonthlyAvg" class="required">当前月日均</label>
+                <div style="display: flex;">
+                    <input type="number" id="currentMonthlyAvg" step="0.01" required style="flex: 1;">
+                    <select id="avgUnit" style="width: 80px; margin-left: 10px;">
+                        <option value="yuan">元</option>
+                        <option value="wan">万元</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="depositDate" class="required">计划操作日期</label>
+                <input type="date" id="depositDate" required>
+            </div>
+            
+            <!-- 计算存入金额模式字段 -->
+            <div id="depositModeFields">
+                <div class="form-group">
+                    <label for="targetMonthlyAvg" class="required">目标月日均</label>
+                    <div style="display: flex;">
+                        <input type="number" id="targetMonthlyAvg" step="0.01" style="flex: 1;">
+                        <select id="targetUnit" style="width: 80px; margin-left: 10px;">
+                            <option value="yuan">元</option>
+                            <option value="wan">万元</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="targetDate" class="required">目标日期</label>
+                    <input type="date" id="targetDate">
+                </div>
+            </div>
+            
+            <!-- 计算目标月日均模式字段 -->
+            <div id="targetModeFields" class="hidden">
+                <div class="form-group">
+                    <label for="depositAmount">计划操作金额</label>
+                    <div style="display: flex;">
+                        <input type="number" id="depositAmount" step="0.01" style="flex: 1;">
+                        <select id="depositUnit" style="width: 80px; margin-left: 10px;">
+                            <option value="yuan">元</option>
+                            <option value="wan">万元</option>
+                        </select>
+                    </div>
+                    <small>正数表示存入，负数表示转出</small>
+                </div>
+                <div class="form-group">
+                    <label for="targetEndDate" class="required">目标日期</label>
+                    <input type="date" id="targetEndDate">
+                </div>
+            </div>
+            
+            <button type="button" onclick="calculate()">计算</button>
+        </form>
+        
+        <div id="result">请填写数据后点击计算</div>
+    </div>
+
+    <script>
+        // 切换计算模式
+        function changeMode() {
+            const mode = document.getElementById('calcMode').value;
+            if (mode === 'deposit') {
+                document.getElementById('depositModeFields').classList.remove('hidden');
+                document.getElementById('targetModeFields').classList.add('hidden');
+            } else {
+                document.getElementById('depositModeFields').classList.add('hidden');
+                document.getElementById('targetModeFields').classList.remove('hidden');
+            }
+        }
+        
+        // 初始化页面
+        window.onload = function() {
+            changeMode();
+            // 设置默认日期为今天
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('currentDate').value = today;
+            document.getElementById('depositDate').value = today;
+        };
+        
+        // 单位转换函数
+        function convertValue(value, unit) {
+            return unit === 'wan' ? value * 10000 : value;
+        }
+        
+        function formatValue(value, unit, decimals = 2) {
+            if (unit === 'wan') {
+                return (value / 10000).toFixed(decimals);
+            }
+            return value.toFixed(decimals);
+        }
+        
+        function calculate() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.className = '';
+            
+            try {
+                // 获取单位和模式
+                const unit = document.getElementById('unit').value;
+                const avgUnit = document.getElementById('avgUnit').value;
+                const mode = document.getElementById('calcMode').value;
+                
+                // 获取必填字段
+                const currentDate = document.getElementById('currentDate').value;
+                const currentPoint = document.getElementById('currentPoint').value;
+                const currentMonthlyAvg = document.getElementById('currentMonthlyAvg').value;
+                const depositDate = document.getElementById('depositDate').value;
+                
+                // 基础验证
+                if (!currentDate || !currentPoint || !currentMonthlyAvg || !depositDate) {
+                    throw new Error("请填写所有必填字段（带*号的字段）");
+                }
+                
+                // 转换数据类型
+                const currentDateObj = new Date(currentDate);
+                const depositDateObj = new Date(depositDate);
+                let currentBalance = parseFloat(currentPoint);
+                let currentAvg = parseFloat(currentMonthlyAvg);
+                
+                // 单位转换
+                currentBalance = convertValue(currentBalance, unit);
+                currentAvg = convertValue(currentAvg, avgUnit);
+                
+                if (mode === 'deposit') {
+                    // 模式1：计算需存入/转出金额
+                    const targetAvg = document.getElementById('targetMonthlyAvg').value;
+                    const targetDate = document.getElementById('targetDate').value;
+                    const targetUnit = document.getElementById('targetUnit').value;
+                    
+                    if (!targetAvg || !targetDate) {
+                        throw new Error("请填写目标月日均和目标日期");
+                    }
+                    
+                    const targetDateObj = new Date(targetDate);
+                    let targetAvgVal = parseFloat(targetAvg);
+                    targetAvgVal = convertValue(targetAvgVal, targetUnit);
+                    
+                    // 验证日期顺序
+                    if (depositDateObj < currentDateObj) {
+                        throw new Error("操作日期不能早于当前日期");
+                    }
+                    if (targetDateObj <= depositDateObj) {
+                        throw new Error("目标日期必须晚于操作日期");
+                    }
+                    
+                    // 计算天数
+                    const daysBeforeCurrent = daysFromMonthStart(currentDateObj);
+                    const isSameDay = currentDateObj.getTime() === depositDateObj.getTime();
+                    const daysCurrentToDeposit = isSameDay ? 0 : dateDiff(currentDateObj, depositDateObj);
+                    const daysDepositToTarget = dateDiff(depositDateObj, targetDateObj) + 1;
+                    const totalDaysInMonth = daysInMonth(currentDateObj);
+                    
+                    // 计算各部分金额
+                    const beforeCurrentSum = currentAvg * (daysBeforeCurrent - 1);
+                    const currentToDepositSum = currentBalance * (isSameDay ? 0 : daysCurrentToDeposit);
+                    const totalTargetSum = targetAvgVal * totalDaysInMonth;
+                    
+                    // 计算需要调整的金额（正数为存入，负数为转出）
+                    const requiredAdjustment = (totalTargetSum - beforeCurrentSum - currentToDepositSum) / daysDepositToTarget - currentBalance;
+                    
+                    // 显示结果
+                    resultDiv.className = 'success';
+                    const action = requiredAdjustment >= 0 ? '存入' : '转出';
+                    const absAmount = Math.abs(requiredAdjustment);
+                    
+                    resultDiv.innerHTML = `
+                        <strong>计算结果：</strong><br>
+                        - 当前余额：${formatValue(currentBalance, unit)} ${unit === 'wan' ? '万元' : '元'}<br>
+                        - 需要${action}金额：${formatValue(absAmount, unit)} ${unit === 'wan' ? '万元' : '元'}<br>
+                        - 操作日期：${formatDate(depositDateObj)}<br>
+                        - 持有到：${formatDate(targetDateObj)} (共${daysDepositToTarget}天)<br><br>
+                        <small>计算明细：<br>
+                        - 全月目标总额：${formatValue(targetAvgVal, targetUnit)} ${targetUnit === 'wan' ? '万元' : '元'} × ${totalDaysInMonth}天 = ${formatValue(totalTargetSum, targetUnit)} ${targetUnit === 'wan' ? '万元' : '元'}<br>
+                        - 已过天数金额：${formatValue(currentAvg, avgUnit)} ${avgUnit === 'wan' ? '万元' : '元'} × ${daysBeforeCurrent-1}天 = ${formatValue(beforeCurrentSum, avgUnit)} ${avgUnit === 'wan' ? '万元' : '元'}<br>
+                        ${isSameDay ? '' : `- 当前到操作日金额：${formatValue(currentBalance, unit)} ${unit === 'wan' ? '万元' : '元'} × ${daysCurrentToDeposit}天 = ${formatValue(currentToDepositSum, unit)} ${unit === 'wan' ? '万元' : '元'}<br>`}
+                        - 操作后每日余额：${formatValue(currentBalance + requiredAdjustment, unit)} ${unit === 'wan' ? '万元' : '元'} × ${daysDepositToTarget}天 = ${formatValue((currentBalance + requiredAdjustment) * daysDepositToTarget, unit)} ${unit === 'wan' ? '万元' : '元'}</small>
+                    `;
+                    
+                } else {
+                    // 模式2：计算目标月日均
+                    const depositAmt = document.getElementById('depositAmount').value;
+                    const targetEndDate = document.getElementById('targetEndDate').value;
+                    const depositUnit = document.getElementById('depositUnit').value;
+                    
+                    if (!depositAmt || !targetEndDate) {
+                        throw new Error("请填写操作金额和目标日期");
+                    }
+                    
+                    const targetDateObj = new Date(targetEndDate);
+                    let depositAmtVal = parseFloat(depositAmt);
+                    depositAmtVal = convertValue(depositAmtVal, depositUnit);
+                    
+                    // 验证日期顺序
+                    if (depositDateObj < currentDateObj) {
+                        throw new Error("操作日期不能早于当前日期");
+                    }
+                    if (targetDateObj <= depositDateObj) {
+                        throw new Error("目标日期必须晚于操作日期");
+                    }
+                    
+                    // 计算天数
+                    const daysBeforeCurrent = daysFromMonthStart(currentDateObj);
+                    const isSameDay = currentDateObj.getTime() === depositDateObj.getTime();
+                    const daysCurrentToDeposit = isSameDay ? 0 : dateDiff(currentDateObj, depositDateObj);
+                    const daysDepositToTarget = dateDiff(depositDateObj, targetDateObj) + 1;
+                    const totalDaysInMonth = daysInMonth(currentDateObj);
+                    
+                    // 计算各部分金额
+                    const beforeCurrentSum = currentAvg * (daysBeforeCurrent - 1);
+                    const currentToDepositSum = currentBalance * (isSameDay ? 0 : daysCurrentToDeposit);
+                    const afterDepositSum = (currentBalance + depositAmtVal) * daysDepositToTarget;
+                    
+                    // 计算预计月日均
+                    const projectedAvg = (beforeCurrentSum + currentToDepositSum + afterDepositSum) / totalDaysInMonth;
+                    
+                    // 显示结果
+                    resultDiv.className = 'success';
+                    const action = depositAmtVal >= 0 ? '存入' : '转出';
+                    const absAmount = Math.abs(depositAmtVal);
+                    
+                    resultDiv.innerHTML = `
+                        <strong>计算结果：</strong><br>
+                        - 当前余额：${formatValue(currentBalance, unit)} ${unit === 'wan' ? '万元' : '元'}<br>
+                        - 计划${action}金额：${formatValue(absAmount, depositUnit)} ${depositUnit === 'wan' ? '万元' : '元'}<br>
+                        - 操作后余额：${formatValue(currentBalance + depositAmtVal, unit)} ${unit === 'wan' ? '万元' : '元'}<br>
+                        - 持有到：${formatDate(targetDateObj)} (共${daysDepositToTarget}天)<br>
+                        - <strong>预计月日均：${formatValue(projectedAvg, avgUnit)} ${avgUnit === 'wan' ? '万元' : '元'}</strong><br><br>
+                        <small>计算明细：<br>
+                        - 已过天数金额：${formatValue(currentAvg, avgUnit)} ${avgUnit === 'wan' ? '万元' : '元'} × ${daysBeforeCurrent-1}天 = ${formatValue(beforeCurrentSum, avgUnit)} ${avgUnit === 'wan' ? '万元' : '元'}<br>
+                        ${isSameDay ? '' : `- 当前到操作日金额：${formatValue(currentBalance, unit)} ${unit === 'wan' ? '万元' : '元'} × ${daysCurrentToDeposit}天 = ${formatValue(currentToDepositSum, unit)} ${unit === 'wan' ? '万元' : '元'}<br>`}
+                        - 操作后金额：${formatValue(currentBalance + depositAmtVal, unit)} ${unit === 'wan' ? '万元' : '元'} × ${daysDepositToTarget}天 = ${formatValue(afterDepositSum, unit)} ${unit === 'wan' ? '万元' : '元'}</small>
+                    `;
+                }
+                
+            } catch (error) {
+                resultDiv.className = 'error';
+                resultDiv.innerHTML = `<strong>错误：</strong>${error.message}`;
+                console.error("计算错误:", error);
+            }
+        }
+
+        // 辅助函数
+        function daysFromMonthStart(date) {
+            const firstDay = new Date(date.getFullYear(), date.getMonth(), 1);
+            return Math.floor((date - firstDay) / (1000*60*60*24)) + 1;
+        }
+
+        function dateDiff(date1, date2) {
+            return Math.floor((date2 - date1) / (1000*60*60*24));
+        }
+
+        function daysInMonth(date) {
+            return new Date(date.getFullYear(), date.getMonth()+1, 0).getDate();
+        }
+
+        function formatDate(date) {
+            return date.toISOString().split('T')[0];
+        }
+    </script>
+</body>
+</html>
